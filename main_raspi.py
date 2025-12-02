@@ -1,16 +1,16 @@
 import cv2
 import numpy as np
-import RPi.GPIO as GPIO
-import time
+from gpiozero import Button, LED
+from time import sleep
 
 # --- Настройка GPIO
 BUTTON_PIN = 5
 LED_PIN = 23
 
-GPIO.setmode(GPIO.BCM)
-GPIO.setup(BUTTON_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-GPIO.setup(LED_PIN, GPIO.OUT)
-GPIO.output(LED_PIN, GPIO.LOW)
+# Используем внутренний подтягивающий резистор (pull_up=True по умолчанию для Button)
+button = Button(BUTTON_PIN, pull_up=True)  # pull_up=True соответствует GPIO.PUD_UP
+led = LED(LED_PIN)
+led.off()
 
 prototxt = "deploy.prototxt"
 model = "mobilenet_iter_73000.caffemodel"
@@ -24,7 +24,12 @@ cap = cv2.VideoCapture(0)
 
 try:
     while True:
-        if GPIO.input(BUTTON_PIN) == GPIO.HIGH:
+        # В GPIO Zero состояние кнопки проверяется через свойство is_pressed
+        # Когда кнопка не нажата (подтяжка к HIGH), is_pressed = False
+        # Когда кнопка нажата (контакт с GND), is_pressed = True
+        # В исходном коде: GPIO.HIGH = кнопка не нажата, GPIO.LOW = нажата
+        
+        if button.is_pressed:  # Эквивалентно GPIO.input(BUTTON_PIN) == GPIO.HIGH
             ret, frame = cap.read()
             if not ret:
                 print("Can't find the frame")
@@ -45,22 +50,22 @@ try:
                     break
 
             if person_detected:
-                GPIO.output(LED_PIN, GPIO.HIGH)
+                led.on()  # Эквивалентно GPIO.output(LED_PIN, GPIO.HIGH)
                 print("Human detected! LED ON")
             else:
-                GPIO.output(LED_PIN, GPIO.LOW)
+                led.off()  # Эквивалентно GPIO.output(LED_PIN, GPIO.LOW)
                 print("Human not found. LED OFF")
 
-            time.sleep(0.1)
+            sleep(0.1)
         else:
-            GPIO.output(LED_PIN, GPIO.LOW)
-            time.sleep(0.1)
+            led.off()
+            sleep(0.1)
 
 except KeyboardInterrupt:
     print("Program finished")
 finally:
-    GPIO.output(LED_PIN, GPIO.LOW)
-    GPIO.cleanup()
+    led.off()  # Гарантированно выключаем LED
+    # В GPIO Zero cleanup происходит автоматически при завершении программы
     cap.release()
     cv2.destroyAllWindows()
     print("GPIO cleared, camera closed")
